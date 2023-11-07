@@ -1,12 +1,13 @@
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.io import read_image
 
 """
 This file contains the generator part of my GAN model. 
 """
 
 class Generator(nn.Module):
-    def __init__(self, nz=128, ngf=128, nc=3):
+    def __init__(self, ngf=100, nc=3):
         """
         This method initializes the generator part of the GAN model.
         ngf: the size of feature maps in the generator
@@ -45,3 +46,11 @@ class Generator(nn.Module):
         The forward pass of the generator.
         """
         return self.G(z)
+
+    def remove_watermark(self, img_path:str):
+        """
+        A method to inference from the model.
+        """
+        img = read_image(img_path)
+
+        return self.forward(img)

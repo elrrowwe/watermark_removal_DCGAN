@@ -44,22 +44,39 @@ def get_paths(split:str='train') -> list:
     """
     returns unsorted file paths of watermarked/nonwatermarked images for a given split (train, val to be implemented) 
     """
-    train_wmark_path = 'C:\\Users\\death\\Desktop\\rnns\\train\\no-watermark\\'
-    train_nowmark_path = 'C:\\Users\\death\\Desktop\\rnns\\train\\watermark\\'
+    if split == 'train':
+        train_nowmark_path = 'C:\\Users\\death\\Desktop\\rnns\\train\\no-watermark\\'
+        train_wmark_path = 'C:\\Users\\death\\Desktop\\rnns\\train\\watermark\\'
 
-    train_wmark = np.array([])
-    train_nowmark = np.array([])
+        train_wmark = np.array([])
+        train_nowmark = np.array([])
 
-    for root, dirs, files in os.walk(train_wmark_path, topdown=True): # data length = 12510
-        for f in files:
-            train_wmark = np.append(train_wmark, take_file_name(f)) # append just the name of the file into the array
+        for root, dirs, files in os.walk(train_wmark_path, topdown=True): # data length = 12510
+            for f in files:
+                train_wmark = np.append(train_wmark, take_file_name(f)) # append just the name of the file into the array
+        
+        for root, dirs, files in os.walk(train_nowmark_path, topdown=True): # data length = 12477
+            for f in files:
+                train_nowmark = np.append(train_nowmark, take_file_name(f)) # append just the name of the file into the array
+                
+        return train_wmark, train_nowmark, train_wmark_path, train_nowmark_path
     
-    for root, dirs, files in os.walk(train_nowmark_path, topdown=True): # data length = 12477
-        for f in files:
-            train_nowmark = np.append(train_nowmark, take_file_name(f)) # append just the name of the file into the array
+    elif split == 'val':
+        valid_wmark_path = 'C:\\Users\\death\\Desktop\\rnns\\valid\\watermark\\'
+        valid_nowmark_path = 'C:\\Users\\death\\Desktop\\rnns\\valid\\no-watermark\\'
 
-    return train_wmark, train_nowmark, train_wmark_path, train_nowmark_path
+        valid_wmark = np.array([])
+        valid_nowmark = np.array([])
 
+        for root, dirs, files in os.walk(valid_wmark_path, topdown=True): # data length = 12510
+            for f in files:
+                valid_wmark = np.append(valid_wmark, take_file_name(f)) # append just the name of the file into the array
+        
+        for root, dirs, files in os.walk(valid_nowmark_path, topdown=True): # data length = 12477
+            for f in files:
+                valid_nowmark = np.append(valid_nowmark, take_file_name(f)) # append just the name of the file into the array
+                
+        return valid_wmark, valid_nowmark, valid_wmark_path, valid_nowmark_path
 
 def process_dataset(dataset:list) -> list:
     """

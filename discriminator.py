@@ -6,7 +6,7 @@ This file contains the discriminator part of the network.
 """
 
 class Discriminator(nn.Module):
-    def __init__(self, ndf=128, nc=3):
+    def __init__(self, ndf=100, nc=3):
         """
         This method initializes the discriminator part of the GAN model.
         ndf: the size of feature maps in the discriminator

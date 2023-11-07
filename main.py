@@ -15,11 +15,18 @@ from torchvision.io import read_image
 # TODO: read about SGD
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(device)  # Making sure the code is run on GPU
+print(device)  #making sure the code is run on GPU
 
-# Lists of filenames
+#getting train file paths
 paths_watermarked, paths_non_watermarked, train_wmark_path, train_nowmark_path = get_paths(split='train')
 paths_watermarked_sorted, paths_non_watermarked_sorted = match_file_names(paths_watermarked, paths_non_watermarked, train_wmark_path, train_nowmark_path)
+
+#getting valid file paths
+valid_paths_watermarked, valid_paths_non_watermarked, valid_wmark_path, valid_nowmark_path = get_paths(split='val')
+valid_paths_watermarked_sorted, valid_paths_non_watermarked_sorted = match_file_names(valid_paths_watermarked, valid_paths_non_watermarked, valid_wmark_path, valid_nowmark_path)
+
+
+#OLD TRAIN, VALIDATION SPLITS
 
 # paths_watermarked_sorted = process_dataset(paths_watermarked_sorted)
 # paths_non_watermarked_sorted = process_dataset(paths_non_watermarked_sorted)
@@ -27,7 +34,7 @@ paths_watermarked_sorted, paths_non_watermarked_sorted = match_file_names(paths_
 
 wm_transform = v2.Compose([
         v2.ToImage(),
-        v2.Resize([int(128), int(128)]),
+        v2.Resize([int(64), int(64)]),
         v2.RandomHorizontalFlip(p=0.5),
         v2.ToDtype(torch.float32, scale=True),
         v2.Normalize(mean=[0, 0, 0], std=[1, 1, 1])
@@ -35,20 +42,23 @@ wm_transform = v2.Compose([
 
 nwm_transform = v2.Compose([
         v2.ToImage(),
-        v2.Resize([int(128), int(128)]),
+        v2.Resize([int(64), int(64)]),
         v2.RandomHorizontalFlip(p=0.5),
         v2.ToDtype(torch.float32, scale=True),
         v2.Normalize(mean=[0, 0, 0], std=[1, 1, 1])
     ])
 
-ds = WatermarkRemovalData(paths_watermarked_sorted, paths_non_watermarked_sorted, transform=wm_transform, target_transform=nwm_transform)
+#creating dataloaders for training, validation data
+ds_train = WatermarkRemovalData(paths_watermarked_sorted, paths_non_watermarked_sorted, transform=wm_transform, target_transform=nwm_transform)
+ds_valid = WatermarkRemovalData(valid_paths_watermarked_sorted, valid_paths_non_watermarked_sorted, transform=wm_transform, target_transform=nwm_transform)
 
-dataloader = DataLoader(dataset=ds, batch_size=1, shuffle=False)
+dataloader_train = DataLoader(dataset=ds_train, batch_size=1, shuffle=False)
+dataloader_valid = DataLoader(dataset=ds_valid, batch_size=1, shuffle=False)
 
 real_label = 1
 fake_label = 0
 
-# Training
+# creating a Binary Cross-Entropy optimization criterion (loss function, essentially log likelihood for binary classification)
 adversarial_loss = nn.BCELoss()
 
 # Lists to keep track of progress
@@ -60,26 +70,25 @@ num_epochs = 1000
 
 fixed_im_transform = v2.Compose([
         v2.ToImage(),
-        v2.Resize([int(128), int(128)]),
+        v2.Resize([int(64), int(64)]),
         v2.ToDtype(torch.float32, scale=True),
         v2.Normalize(mean=[0, 0, 0], std=[1, 1, 1])
     ])
-fixed_im = fixed_im_transform(read_image('C:\\Users\\death\\Desktop\\rnns\\valid\\watermark\\eyes-cats-cat-couch.jpg'))
-
+fixed_im = 0
 netG = Generator().to(device)
 netD = Discriminator().to(device)
 
-optimizerG = Adam(netG.parameters(), lr=1e-4)
-optimizerD = Adam(netD.parameters(), lr=1e-4)
+optimizerG = Adam(netG.parameters(), lr=1e-5, betas=[0.9, 0.9])
+optimizerD = Adam(netD.parameters(), lr=1e-5, betas=[0.9, 0.9])
 adversarial_loss = nn.BCELoss()
 
 print('===...TRAINING...===')
-print(f'len of dataloader = {len(dataloader)}')
+print(f'len of dataloader = {len(dataloader_train)}')
 
 # For each epoch
 for epoch in range(num_epochs):
     # For each batch in the dataloader
-    for i, data in enumerate(dataloader, 0):
+    for i, data in enumerate(dataloader_train, 0):
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ###########################
@@ -94,7 +103,7 @@ for epoch in range(num_epochs):
         label = torch.full((b_size,), real_label, dtype=torch.float, device=device)
         # Forward pass real batch through D
         output = netD(no_watermarks_gpu)
-        label = label.view(b_size, 1, 1, 1).expand_as(output)
+        label = label.view(-1).expand_as(output)
         # Calculate loss on all-real batch
         errD_real = adversarial_loss(output, label)
         # Calculate gradients for D in backward pass
@@ -104,9 +113,11 @@ for epoch in range(num_epochs):
         ## Train with all-fake batch
         # Generate fake image batch with G
         fake = netG(data[0].to(device))
-        label.fill_(fake_label)
+        label = torch.full((b_size,), fake_label, dtype=torch.float, device=device)
         # Classify all fake batch with D
         output = netD(fake.detach()).view(-1)
+        #match the sizes of label and 
+        label = label.view(-1).expand_as(output)
         # Calculate D's loss on the all-fake batch
         errD_fake = adversarial_loss(output, label)
         # Calculate the gradients for this batch, accumulated (summed) with previous gradients
@@ -135,17 +146,18 @@ for epoch in range(num_epochs):
         # Output training stats
         if i % 50 == 0:
             print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                  % (epoch, num_epochs, i, len(dataloader),
+                  % (epoch, num_epochs, i, len(dataloader_train),
                      errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
 
         # Save Losses for plotting later
         G_losses.append(errG.item())
         D_losses.append(errD.item())
 
-        # Check how the generator is doing by saving G's output on fixed_noise
-        if (iters % 500 == 0) or ((epoch == num_epochs - 1) and (i == len(dataloader) - 1)):
-            with torch.no_grad():
-                fake = netG(fixed_im.to(device)).detach().cpu()
-            img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
+        # Check how the generator is doing by saving G's output on a fixed image
+        # if (iters % 500 == 0) or ((epoch == num_epochs - 1) and (i == len(dataloader) - 1)):
+        #     with torch.no_grad():
+        #         fake = netG(fixed_im.to(device)).detach().cpu()
+        #     img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
 
         iters += 1
+netG.remove_watermark(dataloader_valid[0])
